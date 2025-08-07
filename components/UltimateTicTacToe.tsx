@@ -3,6 +3,15 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { RotateCcw, Undo2, Redo2, Trophy, Users } from 'lucide-react';
 
+type GameState = {
+  boards: (string | null)[][];
+  miniWinners: (string | null)[];
+  currentPlayer: string;
+  activeMiniBoard: number | null;
+  lastMove: { miniBoardIndex: number; cellIndex: number; player: string } | null;
+  gameWinner: string | null;
+};
+
 const UltimateTicTacToe = () => {
   // Initialize empty boards
   const createEmptyBoard = () => Array(9).fill(null).map(() => Array(9).fill(null));
@@ -15,7 +24,7 @@ const UltimateTicTacToe = () => {
   const [gameWinner, setGameWinner] = useState(null);
   const [lastMove, setLastMove] = useState(null);
   const [gameStats, setGameStats] = useState({ X: 0, O: 0 });
-  const [moveHistory, setMoveHistory] = useState([]);
+  const [moveHistory, setMoveHistory] = useState<GameState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [animatingCells, setAnimatingCells] = useState(new Set());
 
@@ -47,7 +56,7 @@ const UltimateTicTacToe = () => {
     newActiveMiniBoard: number | null, 
     newLastMove: { miniBoardIndex: number; cellIndex: number; player: string } | null
   ) => {
-    const newState = {
+    const newState: GameState = {
       boards: newBoards,
       miniWinners: newMiniWinners,
       currentPlayer: newCurrentPlayer,
