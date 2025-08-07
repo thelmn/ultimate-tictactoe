@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useCallback, useEffect } from 'react';
 import { RotateCcw, Undo2, Redo2, Trophy, Users } from 'lucide-react';
 
