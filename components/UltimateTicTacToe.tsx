@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { RotateCcw, Undo2, Redo2, Trophy, Users, Menu, X } from 'lucide-react';
+import { RotateCcw, Undo2, Redo2, Trophy, Users, Menu, X, Copy, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 
 type GameState = {
   boards: (string | null)[][];
@@ -28,6 +28,12 @@ const UltimateTicTacToe = () => {
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [animatingCells, setAnimatingCells] = useState(new Set());
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // Online multiplayer states
+  const [roomCode, setRoomCode] = useState('');
+  const [inputCode, setInputCode] = useState('');
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectedRoomCode, setConnectedRoomCode] = useState('');
 
   // Check for three in a row
   const checkWinner = (board: (string | null)[]) => {
@@ -202,6 +208,46 @@ const UltimateTicTacToe = () => {
     return classes;
   };
 
+  // Generate random 6-character room code
+  const generateRoomCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding confusing chars like I, O, 0, 1
+    let code = '';
+    for (let i = 0; i < 6; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setRoomCode(code);
+  };
+
+  // Copy room code to clipboard
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(roomCode);
+    } catch (err) {
+      // Fallback for older browsers
+      const textArea = document.createElement('textarea');
+      textArea.value = roomCode;
+      document.body.appendChild(textArea);
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+    }
+  };
+
+  // Connect to room (demo functionality)
+  const connectToRoom = () => {
+    const codeToConnect = roomCode || inputCode;
+    setConnectedRoomCode(codeToConnect);
+    setIsConnected(true);
+  };
+
+  // Disconnect from room
+  const disconnectFromRoom = () => {
+    setIsConnected(false);
+    setConnectedRoomCode('');
+    setRoomCode('');
+    setInputCode('');
+  };
+
   // Get mini-board classes
   const getMiniBoardClasses = (miniBoardIndex: number) => {
     const isActive = activeMiniBoard === null || activeMiniBoard === miniBoardIndex;
@@ -256,6 +302,68 @@ const UltimateTicTacToe = () => {
               
               {/* Modal Content */}
               <div className="p-4 space-y-6">
+                {/* Play Online Panel */}
+                <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
+                    <Wifi className="w-5 h-5" />
+                    Play Online
+                  </h3>
+                  {!isConnected ? (
+                    <div className="space-y-3">
+                      {/* Generate Room Code */}
+                      <button
+                        onClick={roomCode ? copyToClipboard : generateRoomCode}
+                        className="w-full flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg"
+                      >
+                        {roomCode ? (
+                          <>
+                            <Copy className="w-5 h-5" />
+                            {roomCode}
+                          </>
+                        ) : (
+                          <>
+                            <Wifi className="w-5 h-5" />
+                            Generate room code
+                          </>
+                        )}
+                      </button>
+                      
+                      {/* Enter Room Code */}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          placeholder="Enter room code"
+                          value={inputCode}
+                          onChange={(e) => setInputCode(e.target.value.toUpperCase().slice(0, 6))}
+                          className="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg"
+                          maxLength={6}
+                        />
+                        <button
+                          onClick={connectToRoom}
+                          disabled={inputCode.length !== 6 && !roomCode}
+                          className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <ArrowRight className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="text-center py-2">
+                        <span className="text-green-600 font-semibold">Connected to room </span>
+                        <span className="font-mono text-lg font-bold">{connectedRoomCode}</span>
+                      </div>
+                      <button
+                        onClick={disconnectFromRoom}
+                        className="w-full flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors"
+                      >
+                        <WifiOff className="w-5 h-5" />
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Action Panel */}
                 <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
@@ -390,6 +498,68 @@ const UltimateTicTacToe = () => {
 
           {/* Medium+ Screens Sidebar - Always Visible */}
           <div className="hidden md:flex flex-col space-y-6">
+            {/* Play Online Panel */}
+            <div className="bg-white rounded-2xl shadow-xl p-6 min-w-64">
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <Wifi className="w-5 h-5" />
+                Play Online
+              </h3>
+              {!isConnected ? (
+                <div className="space-y-3">
+                  {/* Generate Room Code */}
+                  <button
+                    onClick={roomCode ? copyToClipboard : generateRoomCode}
+                    className="w-full flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    {roomCode ? (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        {roomCode}
+                      </>
+                    ) : (
+                      <>
+                        <Wifi className="w-4 h-4" />
+                        Generate room code
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* Enter Room Code */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Enter room code"
+                      value={inputCode}
+                      onChange={(e) => setInputCode(e.target.value.toUpperCase().slice(0, 6))}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono"
+                      maxLength={6}
+                    />
+                    <button
+                      onClick={connectToRoom}
+                      disabled={inputCode.length !== 6 && !roomCode}
+                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-center py-2">
+                    <span className="text-green-600 font-semibold">Connected to room </span>
+                    <span className="font-mono font-bold">{connectedRoomCode}</span>
+                  </div>
+                  <button
+                    onClick={disconnectFromRoom}
+                    className="w-full flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    <WifiOff className="w-4 h-4" />
+                    Disconnect
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Action Panel */}
             <div className="bg-white rounded-2xl shadow-xl p-6 min-w-64">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
