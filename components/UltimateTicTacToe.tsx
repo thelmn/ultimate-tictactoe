@@ -20,9 +20,9 @@ const UltimateTicTacToe = () => {
   const [boards, setBoards] = useState(createEmptyBoard());
   const [miniWinners, setMiniWinners] = useState(createEmptyMiniWinners());
   const [currentPlayer, setCurrentPlayer] = useState('X');
-  const [activeMiniBoard, setActiveMiniBoard] = useState(null);
-  const [gameWinner, setGameWinner] = useState(null);
-  const [lastMove, setLastMove] = useState(null);
+  const [activeMiniBoard, setActiveMiniBoard] = useState<number | null>(null);
+  const [gameWinner, setGameWinner] = useState<string | null>(null);
+  const [lastMove, setLastMove] = useState<{ miniBoardIndex: number; cellIndex: number; player: string } | null>(null);
   const [gameStats, setGameStats] = useState({ X: 0, O: 0 });
   const [moveHistory, setMoveHistory] = useState<GameState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
