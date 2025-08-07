@@ -122,7 +122,7 @@ const UltimateTicTacToe = () => {
 
     // Check for game winner
     const gameWin = checkWinner(newMiniWinners);
-    if (gameWin && gameWin !== 'draw') {
+    if (gameWin && gameWin !== 'draw' && (gameWin === 'X' || gameWin === 'O')) {
       setGameWinner(gameWin);
       setGameStats(prev => ({ ...prev, [gameWin]: prev[gameWin] + 1 }));
     }
