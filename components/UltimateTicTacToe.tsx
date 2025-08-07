@@ -106,7 +106,7 @@ const UltimateTicTacToe = () => {
     }
 
     // Determine next active mini-board
-    let nextActiveMiniBoard = cellIndex;
+    let nextActiveMiniBoard: number | null = cellIndex;
     if (newMiniWinners[cellIndex] !== null) {
       nextActiveMiniBoard = null; // Free choice
     }
