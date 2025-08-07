@@ -241,7 +241,7 @@ const UltimateTicTacToe = () => {
         
         {/* Mobile Modal Overlay */}
         {isSidebarOpen && (
-          <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-4" onClick={() => setIsSidebarOpen(false)}>
+          <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-4 px-4" onClick={() => setIsSidebarOpen(false)}>
             <div className="bg-gradient-to-br from-indigo-100 to-purple-100 h-full w-full max-w-md overflow-y-auto rounded-t-2xl" onClick={(e) => e.stopPropagation()}>
               {/* Modal Header */}
               <div className="flex items-center justify-between p-4 border-b border-white border-opacity-30">
