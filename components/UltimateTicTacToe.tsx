@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useCallback, useEffect } from 'react';
 import { RotateCcw, Undo2, Redo2, Trophy, Users } from 'lucide-react';
 
@@ -19,7 +20,7 @@ const UltimateTicTacToe = () => {
   const [animatingCells, setAnimatingCells] = useState(new Set());
 
   // Check for three in a row
-  const checkWinner = (board) => {
+  const checkWinner = (board: (string | null)[]) => {
     const lines = [
       [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
       [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
@@ -36,10 +37,16 @@ const UltimateTicTacToe = () => {
   };
 
   // Check if mini-board is full
-  const isBoardFull = (board) => board.every(cell => cell !== null);
+  const isBoardFull = (board: (string | null)[]) => board.every(cell => cell !== null);
 
   // Save game state to history
-  const saveToHistory = (newBoards, newMiniWinners, newCurrentPlayer, newActiveMiniBoard, newLastMove) => {
+  const saveToHistory = (
+    newBoards: (string | null)[][], 
+    newMiniWinners: (string | null)[], 
+    newCurrentPlayer: string, 
+    newActiveMiniBoard: number | null, 
+    newLastMove: { miniBoardIndex: number; cellIndex: number; player: string } | null
+  ) => {
     const newState = {
       boards: newBoards,
       miniWinners: newMiniWinners,
@@ -56,7 +63,7 @@ const UltimateTicTacToe = () => {
   };
 
   // Handle cell click
-  const handleCellClick = (miniBoardIndex, cellIndex) => {
+  const handleCellClick = (miniBoardIndex: number, cellIndex: number) => {
     if (gameWinner || boards[miniBoardIndex][cellIndex] || miniWinners[miniBoardIndex]) return;
     if (activeMiniBoard !== null && activeMiniBoard !== miniBoardIndex) return;
 
@@ -160,7 +167,7 @@ const UltimateTicTacToe = () => {
   };
 
   // Get cell classes
-  const getCellClasses = (miniBoardIndex, cellIndex, cell) => {
+  const getCellClasses = (miniBoardIndex: number, cellIndex: number, cell: string | null) => {
     const cellKey = `${miniBoardIndex}-${cellIndex}`;
     const isLastMove = lastMove && lastMove.miniBoardIndex === miniBoardIndex && lastMove.cellIndex === cellIndex;
     const isAnimating = animatingCells.has(cellKey);
@@ -185,7 +192,7 @@ const UltimateTicTacToe = () => {
   };
 
   // Get mini-board classes
-  const getMiniBoardClasses = (miniBoardIndex) => {
+  const getMiniBoardClasses = (miniBoardIndex: number) => {
     const isActive = activeMiniBoard === null || activeMiniBoard === miniBoardIndex;
     const isTargeted = activeMiniBoard === miniBoardIndex;
     const winner = miniWinners[miniBoardIndex];
