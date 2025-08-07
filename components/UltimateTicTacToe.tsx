@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { RotateCcw, Undo2, Redo2, Trophy, Users } from 'lucide-react';
+import { RotateCcw, Undo2, Redo2, Trophy, Users, Menu, X } from 'lucide-react';
 
 type GameState = {
   boards: (string | null)[][];
@@ -27,6 +27,7 @@ const UltimateTicTacToe = () => {
   const [moveHistory, setMoveHistory] = useState<GameState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [animatingCells, setAnimatingCells] = useState(new Set());
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   // Check for three in a row
   const checkWinner = (board: (string | null)[]) => {
@@ -139,6 +140,7 @@ const UltimateTicTacToe = () => {
     setMoveHistory([]);
     setHistoryIndex(-1);
     setAnimatingCells(new Set());
+    setIsSidebarOpen(false); // Close sidebar when starting new game
   };
 
   // Undo move
@@ -181,7 +183,7 @@ const UltimateTicTacToe = () => {
     const isLastMove = lastMove && lastMove.miniBoardIndex === miniBoardIndex && lastMove.cellIndex === cellIndex;
     const isAnimating = animatingCells.has(cellKey);
     
-    let classes = "w-8 h-8 border border-gray-300 flex items-center justify-center text-lg font-bold cursor-pointer transition-all duration-200 ";
+    let classes = "w-6 h-6 md:w-8 md:h-8 border border-gray-300 flex items-center justify-center text-sm md:text-lg font-bold cursor-pointer transition-all duration-200 ";
     
     if (cell) {
       classes += cell === 'X' ? 'text-blue-600 bg-blue-50 ' : 'text-red-600 bg-red-50 ';
@@ -226,12 +228,112 @@ const UltimateTicTacToe = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 p-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center text-gray-800 mb-8">Ultimate Tic-Tac-Toe</h1>
+        {/* Header with Title and Menu Button */}
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl md:text-4xl font-bold text-gray-800">Ultimate Tic-Tac-Toe</h1>
+          <button
+            onClick={() => setIsSidebarOpen(true)}
+            className="md:hidden bg-white rounded-lg p-2 shadow-lg hover:shadow-xl transition-shadow"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
+        </div>
+        
+        {/* Mobile Modal Overlay */}
+        {isSidebarOpen && (
+          <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-4" onClick={() => setIsSidebarOpen(false)}>
+            <div className="bg-gradient-to-br from-indigo-100 to-purple-100 h-full w-full max-w-md overflow-y-auto rounded-t-2xl" onClick={(e) => e.stopPropagation()}>
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b border-white border-opacity-30">
+                <h2 className="text-xl font-bold text-gray-800">Game Controls</h2>
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
+                >
+                  <X className="w-6 h-6 text-gray-700" />
+                </button>
+              </div>
+              
+              {/* Modal Content */}
+              <div className="p-4 space-y-6">
+                {/* Action Panel */}
+                <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
+                    <Users className="w-5 h-5" />
+                    Actions
+                  </h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={resetGame}
+                      className="w-full flex items-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors text-lg"
+                    >
+                      <RotateCcw className="w-5 h-5" />
+                      New Game
+                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={undoMove}
+                        disabled={historyIndex < 0}
+                        className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Undo2 className="w-4 h-4" />
+                        Undo
+                      </button>
+                      <button
+                        onClick={redoMove}
+                        disabled={historyIndex >= moveHistory.length - 1}
+                        className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Redo2 className="w-4 h-4" />
+                        Redo
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats Panel */}
+                <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
+                    <Trophy className="w-5 h-5" />
+                    Game Stats
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-blue-600 font-semibold text-lg">Player X:</span>
+                      <span className="text-3xl font-bold text-blue-600">{gameStats.X}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-red-600 font-semibold text-lg">Player O:</span>
+                      <span className="text-3xl font-bold text-red-600">{gameStats.O}</span>
+                    </div>
+                    <div className="pt-2 border-t border-gray-300">
+                      <div className="text-gray-600">
+                        Total Games: {gameStats.X + gameStats.O}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rules Panel */}
+                <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                  <h3 className="text-xl font-bold mb-4 text-gray-800">How to Play</h3>
+                  <div className="text-gray-700 space-y-3">
+                    <p>• Win 3 mini-boards in a row to win the game</p>
+                    <p>• Your move determines where your opponent must play next</p>
+                    <p>• If sent to a closed board, you can play anywhere</p>
+                    <p>• Green outline = must play here</p>
+                    <p>• Yellow outline = last move played</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="flex gap-8 justify-center">
           {/* Game Board */}
-          <div className="bg-white rounded-2xl shadow-2xl p-6">
-            <div className="grid grid-cols-3 gap-4 w-96 h-96">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 md:p-6">
+            <div className="grid grid-cols-3 gap-2 md:gap-4 w-72 h-72 md:w-96 md:h-96">
               {boards.map((miniBoard, miniBoardIndex) => (
                 <div 
                   key={miniBoardIndex} 
@@ -239,7 +341,7 @@ const UltimateTicTacToe = () => {
                 >
                   {miniWinners[miniBoardIndex] ? (
                     <div className="col-span-3 flex items-center justify-center h-full">
-                      <span className="text-4xl font-bold">
+                      <span className="text-2xl md:text-4xl font-bold">
                         {miniWinners[miniBoardIndex] === 'draw' ? '−' : miniWinners[miniBoardIndex]}
                       </span>
                     </div>
@@ -260,24 +362,24 @@ const UltimateTicTacToe = () => {
             </div>
             
             {/* Game Status */}
-            <div className="mt-6 text-center">
+            <div className="mt-4 md:mt-6 text-center">
               {gameWinner ? (
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-xl md:text-2xl font-bold text-green-600">
                   🎉 Player {gameWinner} Wins! 🎉
                 </div>
               ) : (
-                <div className="text-xl">
+                <div className="text-lg md:text-xl">
                   <span className="font-semibold">Current Player: </span>
                   <span className={`font-bold ${currentPlayer === 'X' ? 'text-blue-600' : 'text-red-600'}`}>
                     {currentPlayer}
                   </span>
                   {activeMiniBoard !== null && (
-                    <div className="text-sm text-gray-600 mt-1">
+                    <div className="text-xs md:text-sm text-gray-600 mt-1">
                       Must play in board {activeMiniBoard + 1}
                     </div>
                   )}
                   {activeMiniBoard === null && !gameWinner && (
-                    <div className="text-sm text-green-600 mt-1">
+                    <div className="text-xs md:text-sm text-green-600 mt-1">
                       Free choice - play anywhere!
                     </div>
                   )}
@@ -286,8 +388,8 @@ const UltimateTicTacToe = () => {
             </div>
           </div>
 
-          {/* Sidebar */}
-          <div className="space-y-6">
+          {/* Medium+ Screens Sidebar - Always Visible */}
+          <div className="hidden md:flex flex-col space-y-6">
             {/* Action Panel */}
             <div className="bg-white rounded-2xl shadow-xl p-6 min-w-64">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
