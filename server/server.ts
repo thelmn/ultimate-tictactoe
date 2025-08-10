@@ -6,6 +6,16 @@ import type { Party, Connection } from "partykit/server";
 import { initialGameState, applyMove, undo, redo, opposite } from "./utils";
 import type { GameState, Mark, RoomState, ClientMsg, ServerMsg, Player } from "./types";
 
+// Generate a short 4-character alphanumeric game ID
+function generateGameId(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let result = '';
+  for (let i = 0; i < 4; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
 export default class RoomServer implements Party.Server {
   party: Party;
   state: RoomState;
@@ -14,6 +24,15 @@ export default class RoomServer implements Party.Server {
   // connection and player identity mapping
   connToPlayer: Map<string, string>; // conn.id -> playerId
   playerToConn: Map<string, string>; // playerId -> conn.id
+
+  // Generate a unique game ID for this room
+  generateUniqueGameId(): string {
+    let gameId: string;
+    do {
+      gameId = generateGameId();
+    } while (this.games.has(gameId)); // Ensure no collision within this room
+    return gameId;
+  }
 
   constructor(party: Party) {
     this.party = party;
@@ -143,7 +162,7 @@ export default class RoomServer implements Party.Server {
         if (!other || other !== senderPlayerId) return;
         if (pending.type === "new") {
           this.state.pending = undefined;
-          const gameId = crypto.randomUUID();
+          const gameId = this.generateUniqueGameId();
           const game = initialGameState();
           this.games.set(gameId, game);
           this.state.gamesIndex.push(gameId);
