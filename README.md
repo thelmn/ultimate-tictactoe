@@ -1,6 +1,15 @@
-# Ultimate Tic-Tac-Toe (Next.js + PartyKit)
+# Ultimate Tic-Tac-Toe with online multiplayer (Next.js + PartyKit)
+
+### [Play here](https://ultimate-tictactoe-thelmn.vercel.app/)
+
+Vibe-coded with Copilot Agent Mode :wink:
+
 
 This app supports online multiplayer via PartyKit.
+
+### Game rules:
+https://en.wikipedia.org/wiki/Ultimate_tic-tac-toe
+
 
 ## Dev
 - Install dependencies: npm install
