@@ -3,12 +3,13 @@
 export const dynamic = 'force-dynamic';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import usePartySocket from 'partysocket/react';
 import UltimateTicTacToe from '@/components/UltimateTicTacToe';
 
 export default function GamePage() {
   const { roomId, gameId } = useParams<{ roomId: string; gameId: string }>();
+  const router = useRouter();
   const [gameState, setGameState] = useState<any>(null);
   const [marks, setMarks] = useState<Record<string, 'X'|'O'> | null>(null);
   const [you, setYou] = useState<string | null>(null);
@@ -55,9 +56,17 @@ export default function GamePage() {
         setGameState(msg.game_state);
         setMarks(msg.marks);
       }
+      if (msg.type === 'game_created' && msg.gameId !== gameId) {
+        // New game created, redirect to it
+        router.push(`/${roomId}/${msg.gameId}`);
+      }
       if (msg.type === 'room_state') {
         if (msg.you) setYou(msg.you);
         setRoomState(msg);
+        // If room state shows a different current game, redirect to it
+        if (msg.currentGameId && msg.currentGameId !== gameId) {
+          router.push(`/${roomId}/${msg.currentGameId}`);
+        }
       }
     },
     onError(e: Event) { console.error('[GamePage] error', e); },

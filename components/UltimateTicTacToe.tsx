@@ -112,21 +112,58 @@ const UltimateTicTacToe = ({ mode = 'offline', onlineState, myMark, canPlay = fa
     setHistoryIndex(newHistory.length - 1);
   };
 
+  // Unified game rule validation
+  const isValidMove = (
+    gameState: {
+      gameWinner: 'X' | 'O' | null;
+      boards: (string | null)[][];
+      miniWinners: (string | null)[];
+      activeMiniBoard: number | null;
+      currentPlayer: 'X' | 'O';
+    },
+    miniBoardIndex: number,
+    cellIndex: number,
+    playerMark?: 'X' | 'O'
+  ) => {
+    // Game is already won
+    if (gameState.gameWinner) return false;
+    
+    // Cell is already occupied
+    if (gameState.boards[miniBoardIndex][cellIndex]) return false;
+    
+    // Mini-board is already won or drawn
+    if (gameState.miniWinners[miniBoardIndex]) return false;
+    
+    // Must play in the active mini-board if one is specified
+    if (gameState.activeMiniBoard !== null && gameState.activeMiniBoard !== miniBoardIndex) return false;
+    
+    // In online mode, check if it's the player's turn
+    if (playerMark && gameState.currentPlayer !== playerMark) return false;
+    
+    return true;
+  };
+
   // Handle a click
   const handleCellClick = (miniBoardIndex: number, cellIndex: number) => {
     if (isOnline) {
       if (!onlineState || !canPlay || !myMark) return;
-      if (onlineState.currentPlayer !== myMark) return;
-      if (onlineState.boards[miniBoardIndex][cellIndex]) return;
-      if (onlineState.miniWinners[miniBoardIndex]) return;
-      if (onlineState.activeMiniBoard !== null && onlineState.activeMiniBoard !== miniBoardIndex) return;
+      
+      // Use unified validation for online mode
+      if (!isValidMove(onlineState, miniBoardIndex, cellIndex, myMark)) return;
+      
       onMove?.(miniBoardIndex, cellIndex);
       return;
     }
 
-    // Offline rules
-    if (gameWinner || boards[miniBoardIndex][cellIndex] || miniWinners[miniBoardIndex]) return;
-    if (activeMiniBoard !== null && activeMiniBoard !== miniBoardIndex) return;
+    // Use unified validation for offline mode
+    const currentGameState = {
+      gameWinner,
+      boards,
+      miniWinners,
+      activeMiniBoard,
+      currentPlayer
+    };
+    if (!isValidMove(currentGameState, miniBoardIndex, cellIndex)) return;
 
     const cellKey = `${miniBoardIndex}-${cellIndex}`;
     setAnimatingCells(prev => new Set(prev).add(cellKey));
@@ -367,6 +404,22 @@ const UltimateTicTacToe = ({ mode = 'offline', onlineState, myMark, canPlay = fa
                         </>
                       )}
                     </div>
+                    {isOnline && (
+                      <>
+                        <div className="flex gap-2">
+                          <button onClick={() => onRequestNew?.('X')} disabled={!!pending} className="flex-1 bg-blue-600 text-white px-3 py-3 rounded-lg disabled:opacity-50 text-sm">New Game as X</button>
+                          <button onClick={() => onRequestNew?.('O')} disabled={!!pending} className="flex-1 bg-red-600 text-white px-3 py-3 rounded-lg disabled:opacity-50 text-sm">New Game as O</button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={onRequestUndo} disabled={!!pending || !onlineState} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg disabled:opacity-50 text-sm">
+                            <Undo2 className="w-4 h-4" /> Undo
+                          </button>
+                          <button onClick={onRequestRedo} disabled={!!pending || !onlineState} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg disabled:opacity-50 text-sm">
+                            <Redo2 className="w-4 h-4" /> Redo
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -451,8 +504,20 @@ const UltimateTicTacToe = ({ mode = 'offline', onlineState, myMark, canPlay = fa
                         onClick={() => handleCellClick(miniBoardIndex, cellIndex)}
                         disabled={
                           isOnline
-                            ? !!(dGameWinner || cell || dMiniWinners[miniBoardIndex] || (dActiveMiniBoard !== null && dActiveMiniBoard !== miniBoardIndex) || !canPlay || !myMark || dCurrentPlayer !== myMark)
-                            : !!(gameWinner || cell || miniWinners[miniBoardIndex] || (activeMiniBoard !== null && activeMiniBoard !== miniBoardIndex))
+                            ? !isValidMove({
+                                gameWinner: dGameWinner,
+                                boards: dBoards,
+                                miniWinners: dMiniWinners,
+                                currentPlayer: dCurrentPlayer,
+                                activeMiniBoard: dActiveMiniBoard
+                              }, miniBoardIndex, cellIndex, myMark) || !canPlay
+                            : !isValidMove({
+                                gameWinner,
+                                boards,
+                                miniWinners,
+                                activeMiniBoard,
+                                currentPlayer
+                              }, miniBoardIndex, cellIndex)
                         }
                       >
                         {cell}

@@ -100,6 +100,7 @@ export function applyMove(state: GameState, miniBoardIndex: number, cellIndex: n
     nextActive = null;
   }
 
+  next.activeMiniBoard = nextActive;
   next.lastMove = { miniBoardIndex, cellIndex, player: next.currentPlayer };
   next.currentPlayer = next.currentPlayer === "X" ? "O" : "X";
 
