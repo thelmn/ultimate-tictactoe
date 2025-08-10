@@ -1,0 +1,10 @@
+{
+  "name": "ultimate-tictactoe",
+  "main": "server.ts",
+  "parties": {
+    "ultimate_tictactoe": "server.ts"
+  },
+  "serve": {
+    "port": 1999
+  }
+}

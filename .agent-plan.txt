@@ -1,0 +1,42 @@
+Online multiplayer with PartyKit - Implementation Plan and Progress
+
+Requirements checklist
+- Two-player rooms only (no spectators); reject third connection
+- Shareable room ID; join via URL /<ROOM_ID>
+- Multiple games per room; requester picks X/O each new game
+- Actions: New game (request/accept), Undo/Redo (request/accept)
+- Sync current and previous games + running score
+- URLs: <BASE_URL>/<ROOM_ID> and <BASE_URL>/<ROOM_ID>/<GAME_ID>
+- Server code under ./server
+- Keep offline mode working on root page
+
+High-level steps
+1) Protocol design (messages, validation contract)
+2) PartyKit server (room state, requests, moves, scoring; 2-player cap)
+3) Client routes (/[roomId], /[roomId]/[gameId])
+4) Client networking util (Party client wrapper)
+5) UI integration (refactor UltimateTicTacToe to support net-controlled state)
+6) Dev/deploy scripts and docs
+7) Validation pass (build, basic run instructions)
+
+Progress log
+- [x] Step 1: Define protocol and types (server/types.ts, server/utils.ts)
+ [x] Step 2: Implemented PartyKit server (two-player cap; new/undo/redo requests; per-game marks; move validation; scoring) – files: server/server.ts, server/partykit.json
+ [x] Step 3: Added Next.js routes /[roomId] and /[roomId]/[gameId] – files: app/[roomId]/page.tsx, app/[roomId]/[gameId]/page.tsx
+ [x] Step 4: Added client Party client wrapper – file: components/lib/partyClient.ts
+ [x] Step 5: UI integration – Board supports online mode; pages wired. Switched client pages to usePartySocket (React hook) for stable lifecycle.
+- [ ] Step 2: Implement PartyKit server (./server)
+- [ ] Step 3: Add Next.js routes for room and game
+- [ ] Step 4: Add client networking util
+- [ ] Step 5: Refactor UI and wire online pages
+ - Step 1 summary: Defined message shapes and server state in server/types.ts; implemented core game utils (applyMove, undo/redo, winner checks) in server/utils.ts.
+ - Step 2 summary: Built PartyKit server with two-player enforcement, pending request workflow (new/undo/redo), per-game mark assignment based on requester desiredMark, authoritative move validation, and score updates; broadcasts room_state and game_state.
+ - Step 3 summary: Created room and game routes; room lets user request new game with X/O and accept incoming; game page renders live state and exposes undo/redo and new game controls.
+ - Step 4 summary: Implemented PartyClient websocket wrapper with auto-reconnect and message dispatch; configurable via NEXT_PUBLIC_PARTYKIT_HOST/NAME.
+ - Step 5 summary: Refactored UltimateTicTacToe to support online mode props; hid offline-only controls when online; root page navigates to /[roomId]. Room and Game pages now use usePartySocket; event handlers updated and logs added.
+- [ ] Step 6: Update scripts and docs
+- [ ] Step 7: Validation sweep
+
+Notes
+- Marks are per-game. Desired mark is chosen by the requester when creating a new game request.
+- Scores are aggregated by mark (X vs O) across games.

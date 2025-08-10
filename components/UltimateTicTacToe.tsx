@@ -1,67 +1,102 @@
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { RotateCcw, Undo2, Redo2, Trophy, Users, Menu, X, Copy, ArrowRight, Wifi, WifiOff } from 'lucide-react';
 
-type GameState = {
+// Matches the server's shape used by the online pages
+export type GameState = {
   boards: (string | null)[][];
   miniWinners: (string | null)[];
-  currentPlayer: string;
+  currentPlayer: 'X' | 'O';
   activeMiniBoard: number | null;
-  lastMove: { miniBoardIndex: number; cellIndex: number; player: string } | null;
-  gameWinner: string | null;
+  lastMove: { miniBoardIndex: number; cellIndex: number; player: 'X' | 'O' } | null;
+  gameWinner: 'X' | 'O' | null;
 };
 
-const UltimateTicTacToe = () => {
-  // Initialize empty boards
+export type UltimateProps = {
+  mode?: 'offline' | 'online';
+  onlineState?: GameState | null;
+  myMark?: 'X' | 'O';
+  canPlay?: boolean;
+  onMove?: (miniBoardIndex: number, cellIndex: number) => void;
+  pending?: { type: 'new' | 'undo' | 'redo'; desiredMark?: 'X' | 'O'; fromIsMe: boolean } | null;
+  onRespond?: (accepted: boolean) => void;
+  onRequestNew?: (mark: 'X' | 'O') => void;
+  onRequestUndo?: () => void;
+  onRequestRedo?: () => void;
+};
+
+const UltimateTicTacToe = ({ mode = 'offline', onlineState, myMark, canPlay = false, onMove, pending, onRespond, onRequestNew, onRequestUndo, onRequestRedo }: UltimateProps) => {
+  // Offline state
   const createEmptyBoard = () => Array(9).fill(null).map(() => Array(9).fill(null));
   const createEmptyMiniWinners = () => Array(9).fill(null);
-  
-  const [boards, setBoards] = useState(createEmptyBoard());
-  const [miniWinners, setMiniWinners] = useState(createEmptyMiniWinners());
-  const [currentPlayer, setCurrentPlayer] = useState('X');
+
+  const [boards, setBoards] = useState<(string | null)[][]>(createEmptyBoard());
+  const [miniWinners, setMiniWinners] = useState<(string | null)[]>(createEmptyMiniWinners());
+  const [currentPlayer, setCurrentPlayer] = useState<'X' | 'O'>('X');
   const [activeMiniBoard, setActiveMiniBoard] = useState<number | null>(null);
-  const [gameWinner, setGameWinner] = useState<string | null>(null);
-  const [lastMove, setLastMove] = useState<{ miniBoardIndex: number; cellIndex: number; player: string } | null>(null);
-  const [gameStats, setGameStats] = useState({ X: 0, O: 0 });
+  const [gameWinner, setGameWinner] = useState<'X' | 'O' | null>(null);
+  const [lastMove, setLastMove] = useState<{ miniBoardIndex: number; cellIndex: number; player: 'X' | 'O' } | null>(null);
+  const [gameStats, setGameStats] = useState<{ X: number; O: number }>({ X: 0, O: 0 });
   const [moveHistory, setMoveHistory] = useState<GameState[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [animatingCells, setAnimatingCells] = useState(new Set());
+  const [animatingCells, setAnimatingCells] = useState<Set<string>>(new Set());
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  
-  // Online multiplayer states
+
+  const router = useRouter();
+
+  // Demo-only: offline landing "Play Online" panels
   const [roomCode, setRoomCode] = useState('');
   const [inputCode, setInputCode] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [connectedRoomCode, setConnectedRoomCode] = useState('');
 
-  // Check for three in a row
-  const checkWinner = (board: (string | null)[]) => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
-      [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
-      [0, 4, 8], [2, 4, 6] // diagonals
-    ];
-    
-    for (let line of lines) {
-      const [a, b, c] = line;
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a];
-      }
+  // Derived state to unify UI
+  const isOnline = mode === 'online' && !!onlineState;
+  const dBoards = isOnline && onlineState ? onlineState.boards : boards;
+  const dMiniWinners = isOnline && onlineState ? onlineState.miniWinners : miniWinners;
+  const dCurrentPlayer = isOnline && onlineState ? onlineState.currentPlayer : currentPlayer;
+  const dActiveMiniBoard = isOnline && onlineState ? onlineState.activeMiniBoard : activeMiniBoard;
+  const dGameWinner = isOnline && onlineState ? onlineState.gameWinner : gameWinner;
+  const dLastMove = isOnline && onlineState ? onlineState.lastMove : lastMove;
+
+  // Helpers (offline)
+  const lines = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8],
+    [0, 3, 6], [1, 4, 7], [2, 5, 8],
+    [0, 4, 8], [2, 4, 6]
+  ];
+  const checkWinner = (cells: (string | null)[]) => {
+    for (const [a, b, c] of lines) {
+      if (cells[a] && cells[a] === cells[b] && cells[a] === cells[c]) return cells[a];
     }
     return null;
   };
+  const isBoardFull = (cells: (string | null)[]) => cells.every(c => c !== null);
 
-  // Check if mini-board is full
-  const isBoardFull = (board: (string | null)[]) => board.every(cell => cell !== null);
+  // Online last-move animation (when server updates lastMove)
+  useEffect(() => {
+    if (!isOnline || !dLastMove) return;
+    const key = `${dLastMove.miniBoardIndex}-${dLastMove.cellIndex}`;
+    setAnimatingCells(prev => new Set(prev).add(key));
+    const t = setTimeout(() => {
+      setAnimatingCells(prev => {
+        const s = new Set(prev);
+        s.delete(key);
+        return s;
+      });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [isOnline, dLastMove?.miniBoardIndex, dLastMove?.cellIndex]);
 
-  // Save game state to history
+  // History (offline)
   const saveToHistory = (
-    newBoards: (string | null)[][], 
-    newMiniWinners: (string | null)[], 
-    newCurrentPlayer: string, 
-    newActiveMiniBoard: number | null, 
-    newLastMove: { miniBoardIndex: number; cellIndex: number; player: string } | null
+    newBoards: (string | null)[][],
+    newMiniWinners: (string | null)[],
+    newCurrentPlayer: 'X' | 'O',
+    newActiveMiniBoard: number | null,
+    newLastMove: { miniBoardIndex: number; cellIndex: number; player: 'X' | 'O' } | null,
   ) => {
     const newState: GameState = {
       boards: newBoards,
@@ -69,56 +104,55 @@ const UltimateTicTacToe = () => {
       currentPlayer: newCurrentPlayer,
       activeMiniBoard: newActiveMiniBoard,
       lastMove: newLastMove,
-      gameWinner: null
+      gameWinner: null,
     };
-    
     const newHistory = moveHistory.slice(0, historyIndex + 1);
     newHistory.push(newState);
     setMoveHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
   };
 
-  // Handle cell click
+  // Handle a click
   const handleCellClick = (miniBoardIndex: number, cellIndex: number) => {
+    if (isOnline) {
+      if (!onlineState || !canPlay || !myMark) return;
+      if (onlineState.currentPlayer !== myMark) return;
+      if (onlineState.boards[miniBoardIndex][cellIndex]) return;
+      if (onlineState.miniWinners[miniBoardIndex]) return;
+      if (onlineState.activeMiniBoard !== null && onlineState.activeMiniBoard !== miniBoardIndex) return;
+      onMove?.(miniBoardIndex, cellIndex);
+      return;
+    }
+
+    // Offline rules
     if (gameWinner || boards[miniBoardIndex][cellIndex] || miniWinners[miniBoardIndex]) return;
     if (activeMiniBoard !== null && activeMiniBoard !== miniBoardIndex) return;
 
-    // Animate the cell
     const cellKey = `${miniBoardIndex}-${cellIndex}`;
     setAnimatingCells(prev => new Set(prev).add(cellKey));
     setTimeout(() => {
       setAnimatingCells(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(cellKey);
-        return newSet;
+        const s = new Set(prev);
+        s.delete(cellKey);
+        return s;
       });
-    }, 300);
+    }, 200);
 
-    // Save current state to history
     saveToHistory(boards, miniWinners, currentPlayer, activeMiniBoard, lastMove);
 
-    // Make the move
-    const newBoards = boards.map((board, i) => 
-      i === miniBoardIndex 
-        ? board.map((cell, j) => j === cellIndex ? currentPlayer : cell)
-        : [...board]
+    const newBoards = boards.map((board, i) =>
+      i === miniBoardIndex ? board.map((cell, j) => (j === cellIndex ? currentPlayer : cell)) : [...board]
     );
 
     const newMiniWinners = [...miniWinners];
-    const winner = checkWinner(newBoards[miniBoardIndex]);
-    if (winner) {
-      newMiniWinners[miniBoardIndex] = winner;
-    } else if (isBoardFull(newBoards[miniBoardIndex])) {
-      newMiniWinners[miniBoardIndex] = 'draw';
-    }
+    const miniWinner = checkWinner(newBoards[miniBoardIndex]);
+    if (miniWinner) newMiniWinners[miniBoardIndex] = miniWinner;
+    else if (isBoardFull(newBoards[miniBoardIndex])) newMiniWinners[miniBoardIndex] = 'draw';
 
-    // Determine next active mini-board
     let nextActiveMiniBoard: number | null = cellIndex;
-    if (newMiniWinners[cellIndex] !== null) {
-      nextActiveMiniBoard = null; // Free choice
-    }
+    if (newMiniWinners[cellIndex] !== null) nextActiveMiniBoard = null;
 
-    const newLastMove = { miniBoardIndex, cellIndex, player: currentPlayer };
+    const newLastMove = { miniBoardIndex, cellIndex, player: currentPlayer } as const;
     const nextPlayer = currentPlayer === 'X' ? 'O' : 'X';
 
     setBoards(newBoards);
@@ -127,15 +161,14 @@ const UltimateTicTacToe = () => {
     setActiveMiniBoard(nextActiveMiniBoard);
     setLastMove(newLastMove);
 
-    // Check for game winner
     const gameWin = checkWinner(newMiniWinners);
-    if (gameWin && gameWin !== 'draw' && (gameWin === 'X' || gameWin === 'O')) {
+    if (gameWin === 'X' || gameWin === 'O') {
       setGameWinner(gameWin);
       setGameStats(prev => ({ ...prev, [gameWin]: prev[gameWin] + 1 }));
     }
   };
 
-  // Reset game
+  // Offline controls
   const resetGame = () => {
     setBoards(createEmptyBoard());
     setMiniWinners(createEmptyMiniWinners());
@@ -146,10 +179,9 @@ const UltimateTicTacToe = () => {
     setMoveHistory([]);
     setHistoryIndex(-1);
     setAnimatingCells(new Set());
-    setIsSidebarOpen(false); // Close sidebar when starting new game
+    setIsSidebarOpen(false);
   };
 
-  // Undo move
   const undoMove = () => {
     if (historyIndex >= 0) {
       const prevState = moveHistory[historyIndex];
@@ -163,7 +195,6 @@ const UltimateTicTacToe = () => {
     }
   };
 
-  // Redo move
   const redoMove = () => {
     if (historyIndex < moveHistory.length - 1) {
       const nextIndex = historyIndex + 1;
@@ -174,56 +205,36 @@ const UltimateTicTacToe = () => {
       setActiveMiniBoard(nextState.activeMiniBoard);
       setLastMove(nextState.lastMove);
       setHistoryIndex(nextIndex);
-      
-      // Check for winner after redo
       const gameWin = checkWinner(nextState.miniWinners);
-      if (gameWin && gameWin !== 'draw') {
-        setGameWinner(gameWin);
-      }
+      if (gameWin === 'X' || gameWin === 'O') setGameWinner(gameWin);
     }
   };
 
-  // Get cell classes
   const getCellClasses = (miniBoardIndex: number, cellIndex: number, cell: string | null) => {
     const cellKey = `${miniBoardIndex}-${cellIndex}`;
-    const isLastMove = lastMove && lastMove.miniBoardIndex === miniBoardIndex && lastMove.cellIndex === cellIndex;
+    const isLast = !!(dLastMove && dLastMove.miniBoardIndex === miniBoardIndex && dLastMove.cellIndex === cellIndex);
     const isAnimating = animatingCells.has(cellKey);
-    
+
     let classes = "w-6 h-6 md:w-8 md:h-8 border border-gray-300 flex items-center justify-center text-sm md:text-lg font-bold cursor-pointer transition-all duration-200 ";
-    
-    if (cell) {
-      classes += cell === 'X' ? 'text-blue-600 bg-blue-50 ' : 'text-red-600 bg-red-50 ';
-    } else {
-      classes += "hover:bg-gray-100 ";
-    }
-    
-    if (isLastMove) {
-      classes += "ring-2 ring-yellow-400 ring-opacity-70 ";
-    }
-    
-    if (isAnimating) {
-      classes += "scale-110 ";
-    }
-    
+    if (cell) classes += cell === 'X' ? 'text-blue-600 bg-blue-50 ' : 'text-red-600 bg-red-50 ';
+    else classes += 'hover:bg-gray-100 ';
+    if (isLast) classes += 'ring-2 ring-yellow-400 ring-opacity-70 ';
+    if (isAnimating) classes += 'scale-110 ';
     return classes;
   };
 
-  // Generate random 6-character room code
+  // Demo helper panels
   const generateRoomCode = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Excluding confusing chars like I, O, 0, 1
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
-    for (let i = 0; i < 6; i++) {
-      code += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
     setRoomCode(code);
   };
 
-  // Copy room code to clipboard
   const copyToClipboard = async () => {
     try {
       await navigator.clipboard.writeText(roomCode);
-    } catch (err) {
-      // Fallback for older browsers
+    } catch {
       const textArea = document.createElement('textarea');
       textArea.value = roomCode;
       document.body.appendChild(textArea);
@@ -233,14 +244,13 @@ const UltimateTicTacToe = () => {
     }
   };
 
-  // Connect to room (demo functionality)
   const connectToRoom = () => {
     const codeToConnect = roomCode || inputCode;
     setConnectedRoomCode(codeToConnect);
     setIsConnected(true);
+    if (codeToConnect && mode === 'offline') router.push(`/${codeToConnect}`);
   };
 
-  // Disconnect from room
   const disconnectFromRoom = () => {
     setIsConnected(false);
     setConnectedRoomCode('');
@@ -248,158 +258,118 @@ const UltimateTicTacToe = () => {
     setInputCode('');
   };
 
-  // Get mini-board classes
   const getMiniBoardClasses = (miniBoardIndex: number) => {
-    const isActive = activeMiniBoard === null || activeMiniBoard === miniBoardIndex;
-    const isTargeted = activeMiniBoard === miniBoardIndex;
-    const winner = miniWinners[miniBoardIndex];
-    
-    let classes = "grid grid-cols-3 gap-1 p-2 rounded-lg transition-all duration-300 ";
-    
+    const activeMB = dActiveMiniBoard;
+    const winners = dMiniWinners;
+    const isActive = activeMB === null || activeMB === miniBoardIndex;
+    const isTargeted = activeMB === miniBoardIndex;
+    const winner = winners[miniBoardIndex];
+
+    let classes = 'grid grid-cols-3 gap-1 p-2 rounded-lg transition-all duration-300 ';
     if (winner) {
-      if (winner === 'X') classes += "bg-blue-200 ";
-      else if (winner === 'O') classes += "bg-red-200 ";
-      else classes += "bg-gray-200 ";
-    } else if (!isActive) {
-      classes += "opacity-30 ";
-    } else if (isTargeted) {
-      classes += "ring-2 ring-green-500 bg-green-50 ";
-    } else {
-      classes += "bg-white ";
-    }
-    
+      if (winner === 'X') classes += 'bg-blue-200 ';
+      else if (winner === 'O') classes += 'bg-red-200 ';
+      else classes += 'bg-gray-200 ';
+    } else if (!isActive) classes += 'opacity-30 ';
+    else if (isTargeted) classes += 'ring-2 ring-green-500 bg-green-50 ';
+    else classes += 'bg-white ';
     return classes;
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-100 p-4">
       <div className="max-w-6xl mx-auto">
-        {/* Header with Title and Menu Button */}
+        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl md:text-4xl font-bold text-gray-800">Ultimate Tic-Tac-Toe</h1>
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="md:hidden bg-white rounded-lg p-2 shadow-lg hover:shadow-xl transition-shadow"
-          >
+          <button onClick={() => setIsSidebarOpen(true)} className="md:hidden bg-white rounded-lg p-2 shadow-lg hover:shadow-xl transition-shadow">
             <Menu className="w-6 h-6" />
           </button>
         </div>
-        
+
         {/* Mobile Modal Overlay */}
         {isSidebarOpen && (
           <div className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-4 px-4" onClick={() => setIsSidebarOpen(false)}>
             <div className="bg-gradient-to-br from-indigo-100 to-purple-100 h-full w-full max-w-md overflow-y-auto rounded-t-2xl" onClick={(e) => e.stopPropagation()}>
-              {/* Modal Header */}
               <div className="flex items-center justify-between p-4 border-b border-white border-opacity-30">
                 <h2 className="text-xl font-bold text-gray-800">Game Controls</h2>
-                <button
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors"
-                >
+                <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-white hover:bg-opacity-20 rounded-lg transition-colors">
                   <X className="w-6 h-6 text-gray-700" />
                 </button>
               </div>
-              
-              {/* Modal Content */}
               <div className="p-4 space-y-6">
-                {/* Play Online Panel */}
-                <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                  <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
-                    <Wifi className="w-5 h-5" />
-                    Play Online
-                  </h3>
-                  {!isConnected ? (
-                    <div className="space-y-3">
-                      {/* Generate Room Code */}
-                      <button
-                        onClick={roomCode ? copyToClipboard : generateRoomCode}
-                        className="w-full flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg"
-                      >
-                        {roomCode ? (
-                          <>
-                            <Copy className="w-5 h-5" />
-                            {roomCode}
-                          </>
-                        ) : (
-                          <>
-                            <Wifi className="w-5 h-5" />
-                            Generate room code
-                          </>
-                        )}
-                      </button>
-                      
-                      {/* Enter Room Code */}
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder="Enter room code"
-                          value={inputCode}
-                          onChange={(e) => setInputCode(e.target.value.toUpperCase().slice(0, 6))}
-                          className="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg"
-                          maxLength={6}
-                        />
-                        <button
-                          onClick={connectToRoom}
-                          disabled={inputCode.length !== 6 && !roomCode}
-                          className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                        >
-                          <ArrowRight className="w-5 h-5" />
+                {mode === 'offline' && (
+                  <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                    <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
+                      <Wifi className="w-5 h-5" />
+                      Play Online
+                    </h3>
+                    {!isConnected ? (
+                      <div className="space-y-3">
+                        <button onClick={roomCode ? copyToClipboard : generateRoomCode} className="w-full flex items-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors text-lg">
+                          {roomCode ? (
+                            <>
+                              <Copy className="w-5 h-5" />
+                              {roomCode}
+                            </>
+                          ) : (
+                            <>
+                              <Wifi className="w-5 h-5" />
+                              Generate room code
+                            </>
+                          )}
+                        </button>
+                        <div className="flex gap-2">
+                          <input type="text" placeholder="Enter room code" value={inputCode} onChange={(e) => setInputCode(e.target.value.toUpperCase().slice(0, 6))} className="flex-1 px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono text-lg" maxLength={6} />
+                          <button onClick={connectToRoom} disabled={inputCode.length !== 6 && !roomCode} className="px-4 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <ArrowRight className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="text-center py-2">
+                          <span className="text-green-600 font-semibold">Connected to room </span>
+                          <span className="font-mono text-lg font-bold">{connectedRoomCode}</span>
+                        </div>
+                        <button onClick={disconnectFromRoom} className="w-full flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors">
+                          <WifiOff className="w-5 h-5" />
+                          Disconnect
                         </button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="text-center py-2">
-                        <span className="text-green-600 font-semibold">Connected to room </span>
-                        <span className="font-mono text-lg font-bold">{connectedRoomCode}</span>
-                      </div>
-                      <button
-                        onClick={disconnectFromRoom}
-                        className="w-full flex items-center gap-2 bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 transition-colors"
-                      >
-                        <WifiOff className="w-5 h-5" />
-                        Disconnect
-                      </button>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                )}
 
-                {/* Action Panel */}
                 <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
                     <Users className="w-5 h-5" />
                     Actions
                   </h3>
                   <div className="space-y-3">
-                    <button
-                      onClick={resetGame}
-                      className="w-full flex items-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors text-lg"
-                    >
-                      <RotateCcw className="w-5 h-5" />
-                      New Game
-                    </button>
+                    {mode === 'offline' && (
+                      <button onClick={resetGame} className="w-full flex items-center gap-2 bg-indigo-600 text-white px-4 py-3 rounded-lg hover:bg-indigo-700 transition-colors text-lg">
+                        <RotateCcw className="w-5 h-5" />
+                        New Game
+                      </button>
+                    )}
                     <div className="flex gap-2">
-                      <button
-                        onClick={undoMove}
-                        disabled={historyIndex < 0}
-                        className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <Undo2 className="w-4 h-4" />
-                        Undo
-                      </button>
-                      <button
-                        onClick={redoMove}
-                        disabled={historyIndex >= moveHistory.length - 1}
-                        className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        <Redo2 className="w-4 h-4" />
-                        Redo
-                      </button>
+                      {mode === 'offline' && (
+                        <>
+                          <button onClick={undoMove} disabled={historyIndex < 0} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <Undo2 className="w-4 h-4" />
+                            Undo
+                          </button>
+                          <button onClick={redoMove} disabled={historyIndex >= moveHistory.length - 1} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-3 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                            <Redo2 className="w-4 h-4" />
+                            Redo
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
 
-                {/* Stats Panel */}
                 <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800">
                     <Trophy className="w-5 h-5" />
@@ -415,14 +385,11 @@ const UltimateTicTacToe = () => {
                       <span className="text-3xl font-bold text-red-600">{gameStats.O}</span>
                     </div>
                     <div className="pt-2 border-t border-gray-300">
-                      <div className="text-gray-600">
-                        Total Games: {gameStats.X + gameStats.O}
-                      </div>
+                      <div className="text-gray-600">Total Games: {gameStats.X + gameStats.O}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Rules Panel */}
                 <div className="bg-white bg-opacity-80 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
                   <h3 className="text-xl font-bold mb-4 text-gray-800">How to Play</h3>
                   <div className="text-gray-700 space-y-3">
@@ -437,21 +404,44 @@ const UltimateTicTacToe = () => {
             </div>
           </div>
         )}
-        
+
         <div className="flex gap-8 justify-center">
           {/* Game Board */}
-          <div className="bg-white rounded-2xl shadow-2xl p-4 md:p-6">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 md:p-6 relative">
+            {/* Pending request modal overlay (online) */}
+            {isOnline && onlineState && pending && (
+              <div className="fixed inset-0 bg-black/50 z-20 flex items-center justify-center">
+                <div className="bg-white rounded-2xl shadow-2xl p-6 w-80 text-center">
+                  {pending.fromIsMe ? (
+                    <>
+                      <div className="font-semibold mb-2">Awaiting opponent response…</div>
+                      <div className="text-sm text-gray-600 mb-4">
+                        {pending.type === 'new' ? `New game${pending.desiredMark ? ` as ${pending.desiredMark}` : ''}` : pending.type.toUpperCase()}
+                      </div>
+                      <button onClick={() => onRespond?.(false)} className="px-4 py-2 bg-gray-600 text-white rounded">Cancel</button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-semibold mb-2">Opponent requests</div>
+                      <div className="text-sm text-gray-600 mb-4">
+                        {pending.type === 'new' ? `Start new game${pending.desiredMark ? ` as ${pending.desiredMark}` : ''}?` : `${pending.type.toUpperCase()} last move?`}
+                      </div>
+                      <div className="flex gap-2 justify-center">
+                        <button onClick={() => onRespond?.(true)} className="px-4 py-2 bg-green-600 text-white rounded">Accept</button>
+                        <button onClick={() => onRespond?.(false)} className="px-4 py-2 bg-gray-500 text-white rounded">Decline</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-2 md:gap-4 w-72 h-72 md:w-96 md:h-96">
-              {boards.map((miniBoard, miniBoardIndex) => (
-                <div 
-                  key={miniBoardIndex} 
-                  className={getMiniBoardClasses(miniBoardIndex)}
-                >
-                  {miniWinners[miniBoardIndex] ? (
+              {dBoards.map((miniBoard, miniBoardIndex) => (
+                <div key={miniBoardIndex} className={getMiniBoardClasses(miniBoardIndex)}>
+                  {dMiniWinners[miniBoardIndex] ? (
                     <div className="col-span-3 flex items-center justify-center h-full">
-                      <span className="text-2xl md:text-4xl font-bold">
-                        {miniWinners[miniBoardIndex] === 'draw' ? '−' : miniWinners[miniBoardIndex]}
-                      </span>
+                      <span className="text-2xl md:text-4xl font-bold">{dMiniWinners[miniBoardIndex] === 'draw' ? '−' : dMiniWinners[miniBoardIndex]}</span>
                     </div>
                   ) : (
                     miniBoard.map((cell, cellIndex) => (
@@ -459,7 +449,11 @@ const UltimateTicTacToe = () => {
                         key={cellIndex}
                         className={getCellClasses(miniBoardIndex, cellIndex, cell)}
                         onClick={() => handleCellClick(miniBoardIndex, cellIndex)}
-                        disabled={gameWinner || cell || miniWinners[miniBoardIndex] || (activeMiniBoard !== null && activeMiniBoard !== miniBoardIndex)}
+                        disabled={
+                          isOnline
+                            ? !!(dGameWinner || cell || dMiniWinners[miniBoardIndex] || (dActiveMiniBoard !== null && dActiveMiniBoard !== miniBoardIndex) || !canPlay || !myMark || dCurrentPlayer !== myMark)
+                            : !!(gameWinner || cell || miniWinners[miniBoardIndex] || (activeMiniBoard !== null && activeMiniBoard !== miniBoardIndex))
+                        }
                       >
                         {cell}
                       </button>
@@ -468,134 +462,113 @@ const UltimateTicTacToe = () => {
                 </div>
               ))}
             </div>
-            
+
             {/* Game Status */}
             <div className="mt-4 md:mt-6 text-center">
-              {gameWinner ? (
-                <div className="text-xl md:text-2xl font-bold text-green-600">
-                  🎉 Player {gameWinner} Wins! 🎉
-                </div>
+              {dGameWinner ? (
+                <div className="text-xl md:text-2xl font-bold text-green-600">🎉 Player {dGameWinner} Wins! 🎉</div>
               ) : (
                 <div className="text-lg md:text-xl">
                   <span className="font-semibold">Current Player: </span>
-                  <span className={`font-bold ${currentPlayer === 'X' ? 'text-blue-600' : 'text-red-600'}`}>
-                    {currentPlayer}
-                  </span>
-                  {activeMiniBoard !== null && (
-                    <div className="text-xs md:text-sm text-gray-600 mt-1">
-                      Must play in board {activeMiniBoard + 1}
-                    </div>
+                  <span className={`font-bold ${dCurrentPlayer === 'X' ? 'text-blue-600' : 'text-red-600'}`}>{dCurrentPlayer}</span>
+                  {dActiveMiniBoard !== null && (
+                    <div className="text-xs md:text-sm text-gray-600 mt-1">Must play in board {dActiveMiniBoard + 1}</div>
                   )}
-                  {activeMiniBoard === null && !gameWinner && (
-                    <div className="text-xs md:text-sm text-green-600 mt-1">
-                      Free choice - play anywhere!
-                    </div>
+                  {dActiveMiniBoard === null && !dGameWinner && (
+                    <div className="text-xs md:text-sm text-green-600 mt-1">Free choice - play anywhere!</div>
                   )}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Medium+ Screens Sidebar - Always Visible */}
+          {/* Sidebar (md+) */}
           <div className="hidden md:flex flex-col space-y-6">
-            {/* Play Online Panel */}
-            <div className="bg-white rounded-2xl shadow-xl p-6 min-w-64">
-              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <Wifi className="w-5 h-5" />
-                Play Online
-              </h3>
-              {!isConnected ? (
-                <div className="space-y-3">
-                  {/* Generate Room Code */}
-                  <button
-                    onClick={roomCode ? copyToClipboard : generateRoomCode}
-                    className="w-full flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
-                  >
-                    {roomCode ? (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        {roomCode}
-                      </>
-                    ) : (
-                      <>
-                        <Wifi className="w-4 h-4" />
-                        Generate room code
-                      </>
-                    )}
-                  </button>
-                  
-                  {/* Enter Room Code */}
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Enter room code"
-                      value={inputCode}
-                      onChange={(e) => setInputCode(e.target.value.toUpperCase().slice(0, 6))}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono"
-                      maxLength={6}
-                    />
-                    <button
-                      onClick={connectToRoom}
-                      disabled={inputCode.length !== 6 && !roomCode}
-                      className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      <ArrowRight className="w-4 h-4" />
+            {mode === 'offline' && (
+              <div className="bg-white rounded-2xl shadow-xl p-6 min-w-64">
+                <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Wifi className="w-5 h-5" />
+                  Play Online
+                </h3>
+                {!isConnected ? (
+                  <div className="space-y-3">
+                    <button onClick={roomCode ? copyToClipboard : generateRoomCode} className="w-full flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
+                      {roomCode ? (
+                        <>
+                          <Copy className="w-4 h-4" />
+                          {roomCode}
+                        </>
+                      ) : (
+                        <>
+                          <Wifi className="w-4 h-4" />
+                          Generate room code
+                        </>
+                      )}
+                    </button>
+                    <div className="flex gap-2">
+                      <input type="text" placeholder="Enter room code" value={inputCode} onChange={(e) => setInputCode(e.target.value.toUpperCase().slice(0, 6))} className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-center font-mono" maxLength={6} />
+                      <button onClick={connectToRoom} disabled={inputCode.length !== 6 && !roomCode} className="px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-center py-2">
+                      <span className="text-green-600 font-semibold">Connected to room </span>
+                      <span className="font-mono font-bold">{connectedRoomCode}</span>
+                    </div>
+                    <button onClick={disconnectFromRoom} className="w-full flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors">
+                      <WifiOff className="w-4 h-4" />
+                      Disconnect
                     </button>
                   </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="text-center py-2">
-                    <span className="text-green-600 font-semibold">Connected to room </span>
-                    <span className="font-mono font-bold">{connectedRoomCode}</span>
-                  </div>
-                  <button
-                    onClick={disconnectFromRoom}
-                    className="w-full flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-                  >
-                    <WifiOff className="w-4 h-4" />
-                    Disconnect
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
 
-            {/* Action Panel */}
             <div className="bg-white rounded-2xl shadow-xl p-6 min-w-64">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Users className="w-5 h-5" />
                 Actions
               </h3>
               <div className="space-y-3">
-                <button
-                  onClick={resetGame}
-                  className="w-full flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  New Game
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    onClick={undoMove}
-                    disabled={historyIndex < 0}
-                    className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Undo2 className="w-4 h-4" />
-                    Undo
+                {mode === 'offline' && (
+                  <button onClick={resetGame} className="w-full flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                    <RotateCcw className="w-4 h-4" />
+                    New Game
                   </button>
-                  <button
-                    onClick={redoMove}
-                    disabled={historyIndex >= moveHistory.length - 1}
-                    className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    <Redo2 className="w-4 h-4" />
-                    Redo
-                  </button>
-                </div>
+                )}
+                {isOnline ? (
+                  <>
+                    <div className="flex gap-2">
+                      <button onClick={() => onRequestNew?.('X')} disabled={!!pending} className="flex-1 bg-blue-600 text-white px-3 py-2 rounded-lg disabled:opacity-50">New Game as X</button>
+                      <button onClick={() => onRequestNew?.('O')} disabled={!!pending} className="flex-1 bg-red-600 text-white px-3 py-2 rounded-lg disabled:opacity-50">New Game as O</button>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={onRequestUndo} disabled={!!pending || !onlineState} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg disabled:opacity-50">
+                        <Undo2 className="w-4 h-4" /> Undo
+                      </button>
+                      <button onClick={onRequestRedo} disabled={!!pending || !onlineState} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg disabled:opacity-50">
+                        <Redo2 className="w-4 h-4" /> Redo
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex gap-2">
+                    <button onClick={undoMove} disabled={historyIndex < 0} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      <Undo2 className="w-4 h-4" />
+                      Undo
+                    </button>
+                    <button onClick={redoMove} disabled={historyIndex >= moveHistory.length - 1} className="flex-1 flex items-center gap-2 bg-gray-600 text-white px-3 py-2 rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+                      <Redo2 className="w-4 h-4" />
+                      Redo
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Stats Panel */}
             <div className="bg-white rounded-2xl shadow-xl p-6">
               <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Trophy className="w-5 h-5" />
@@ -611,14 +584,11 @@ const UltimateTicTacToe = () => {
                   <span className="text-2xl font-bold text-red-600">{gameStats.O}</span>
                 </div>
                 <div className="pt-2 border-t">
-                  <div className="text-sm text-gray-600">
-                    Total Games: {gameStats.X + gameStats.O}
-                  </div>
+                  <div className="text-sm text-gray-600">Total Games: {gameStats.X + gameStats.O}</div>
                 </div>
               </div>
             </div>
 
-            {/* Rules Panel */}
             <div className="bg-white rounded-2xl shadow-xl p-6">
               <h3 className="text-xl font-bold mb-4">How to Play</h3>
               <div className="text-sm text-gray-700 space-y-2">
